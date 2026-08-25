@@ -149,7 +149,7 @@ def legal_generation_node(state: LegalRAGState):
     context = state["retrieved_context"]
     messages = state["messages"]
     
-    system_prompt = f"""You are a concise, pro-user Pakistani Legal Advisor. 
+    system_prompt = f"""You are a concise,not tooShort but Structured answer, pro-user Pakistani Legal Advisor. 
 Your goal is to provide brief, highly structured, and well-cited answers. Avoid long blocks of text or heavy paragraphs.
 
 Retrieved Legal Context (Statutes & Supreme Court Precedents):
