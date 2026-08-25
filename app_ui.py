@@ -48,7 +48,7 @@ def init_base_rag():
     
     # Initialize Grok via xAI's OpenAI-compatible API structure
     llm = ChatOpenAI(
-        model="grok-beta",  # or grok-2 depending on your xAI model preference
+        model="grok-3",  # or grok-2 depending on your xAI model preference
         temperature=0.2,
         openai_api_key=api_key,
         openai_api_base="https://api.x.ai/v1"
