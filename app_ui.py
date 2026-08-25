@@ -23,21 +23,20 @@ st.set_page_config(
 )
 
 st.title("🏛️ Pakistani Legal Consultation AI")
-st.caption("Your pro-user assistant for Pakistani Law with secure, private custom document support.")
+st.caption("Your concise, pro-user assistant for Pakistani Law and Court Precedents.")
 
 # --- 2. Initialize Base Resources (Cached globally to save RAM) ---
 @st.cache_resource
 def init_base_rag():
     embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
     
-    # Load shared pre-indexed base vector database
+    # Load shared pre-indexed base vector database (Statutes & Precedents)
     base_vector_store = Chroma(
         persist_directory="./pak_law_chroma_db",
         embedding_function=embeddings
     )
     
-    # Use Streamlit secrets if hosted online, otherwise environment variables
-    # Safe check that won't crash if local secrets.toml is missing
+    # Safe check for Streamlit secrets or local env variable
     api_key = None
     try:
         api_key = st.secrets.get("GOOGLE_API_KEY")
@@ -60,7 +59,7 @@ embeddings, base_vector_store, llm = init_base_rag()
 if "session_id" not in st.session_state:
     st.session_state.session_id = tempfile.mkdtemp()
     
-    # Create a private, in-memory/ephemeral Chroma collection unique to this visitor's browser session
+    # Create a private, ephemeral Chroma collection unique to this visitor's browser session
     st.session_state.user_vector_store = Chroma(
         embedding_function=embeddings
     )
@@ -74,14 +73,13 @@ if "uploaded_files_names" not in st.session_state:
 # --- 4. Sidebar: Private Document Uploader ---
 with st.sidebar:
     st.header("📂 Custom Law Library")
-    st.write("Upload private legal PDFs (e.g., Copyright, Trademark laws). These stay **strictly private** to your current session and are wiped when you close the tab.")
+    st.write("Upload private legal PDFs. These stay **strictly private** to your current session and are wiped when you close the tab.")
     
     uploaded_file = st.file_uploader("Upload a Legal PDF", type=["pdf"])
     
     if uploaded_file is not None:
         if uploaded_file.name not in st.session_state.uploaded_files_names:
             with st.spinner(f"Indexing {uploaded_file.name} privately into your session..."):
-                # Save temporarily to parse safely
                 temp_pdf_path = os.path.join(st.session_state.session_id, uploaded_file.name)
                 with open(temp_pdf_path, "wb") as f:
                     f.write(uploaded_file.getbuffer())
@@ -92,7 +90,6 @@ with st.sidebar:
                 text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
                 private_chunks = text_splitter.split_documents(private_docs)
                 
-                # Add chunks ONLY to this specific user's RAM vector store
                 st.session_state.user_vector_store.add_documents(private_chunks)
                 st.session_state.uploaded_files_names.append(uploaded_file.name)
                 
@@ -115,7 +112,6 @@ class CombinedRetriever:
         except Exception:
             user_docs = []
         base_docs = self.base_retriever.invoke(query)
-        # Prioritize user-uploaded private documents, followed by base acts
         return user_docs + base_docs
 
 retriever = CombinedRetriever(base_vector_store, st.session_state.user_vector_store)
@@ -132,7 +128,7 @@ def query_rewriter_node(state: LegalRAGState):
         return {"rewritten_query": messages[-1].content}
         
     prompt = [
-        SystemMessage(content="Given the conversation history, rewrite the latest user input into a concise search query for Pakistani legal statutes. Output ONLY the search query text."),
+        SystemMessage(content="Given the conversation history, rewrite the latest user input into a concise search query for Pakistani legal statutes and precedents. Output ONLY the search query text."),
     ] + messages
     
     response = llm.invoke(prompt)
@@ -153,28 +149,25 @@ def legal_generation_node(state: LegalRAGState):
     context = state["retrieved_context"]
     messages = state["messages"]
     
-    system_prompt = f"""You are a friendly, supportive, and pro-user Pakistani Legal Advisor. 
-Your goal is to protect the user's rights, explain things in simple everyday language, and avoid heavy legalese or dense blocks of text.
+    system_prompt = f"""You are a concise, pro-user Pakistani Legal Advisor. 
+Your goal is to provide brief, highly structured, and well-cited answers. Avoid long blocks of text or heavy paragraphs.
 
-Retrieved Legal Context:
+Retrieved Legal Context (Statutes & Supreme Court Precedents):
 \"\"\"
 {context}
 \"\"\"
 
-Formatting and Rule-Mentioning Rules:
-1. **Mandatory Rule/Section Number**: Whenever you mention a legal right, claim, or remedy, you MUST clearly state the specific rule or section number (e.g., "Section 9 of the Specific Relief Act, 1877", or clauses from user-uploaded files). 
-2. **Plain Language**: Avoid difficult legal jargon. Translate complex rules into simple terms a regular person can understand.
-3. **Sector Categorization**: Start by clearly stating the legal sector (e.g., Property & Civil Law, Criminal Law, Intellectual Property).
-4. **Situation Analysis**: Explain clearly how the law protects or favors the user based on their specific situation.
-5. **Actionable Next Steps**: Provide a short, easy-to-follow bulleted list of what they can do next.
-6. **Follow-up**: Ask 1 simple, friendly question to gather any missing facts needed to help them better.
-7. **Clean Formatting**: Use clear bullet points, bold headings, and line breaks. Avoid massive walls of text.
+Strict Output Format & Rules:
+1. **Direct Answer**: Start immediately with a clear summary or direct response (e.g., "Yes, you have a strong legal right..." or "No, you cannot legally...").
+2. **Mandatory Section / Article Citation**: You MUST explicitly cite the exact law, act, and section/article number (e.g., "Section 9 of the Specific Relief Act, 1877" or "Article 199 of the Constitution of Pakistan"). Do not skip this.
+3. **Relevant Case Precedent**: Briefly name a relevant court case or order found in the context supporting this claim (e.g., "Relevant Precedent: Supreme Court Case C.A. No...").
+4. **Actionable Next Steps**: Provide a short, 2-item bulleted list of immediate actions.
+5. **Follow-up Question**: End with 1 short, direct question to gather any missing information.
 """
 
     chat_prompt = [SystemMessage(content=system_prompt)] + messages
     response = llm.invoke(chat_prompt)
     return {"messages": [response]}
-
 workflow = StateGraph(LegalRAGState)
 workflow.add_node("rewriter", query_rewriter_node)
 workflow.add_node("retriever", retrieval_node)
@@ -205,7 +198,7 @@ if user_prompt := st.chat_input("Describe your legal issue or ask about your upl
             lc_messages.append(AIMessage(content=msg["content"]))
 
     with st.chat_message("assistant"):
-        with st.spinner("Analyzing standard laws and your private documents..."):
+        with st.spinner("Analyzing standard laws, precedents, and your documents..."):
             try:
                 state_output = app_graph.invoke({
                     "messages": lc_messages,
