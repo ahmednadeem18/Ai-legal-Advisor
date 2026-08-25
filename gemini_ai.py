@@ -7,7 +7,7 @@ from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_chroma import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
-from langchain_openai import ChatOpenAI  # Grok uses OpenAI-compatible client
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 from langgraph.graph import StateGraph, START, END
 from typing import TypedDict, Annotated, List, Any
@@ -17,13 +17,13 @@ load_dotenv()
 
 # --- 1. Page Config ---
 st.set_page_config(
-    page_title="Pakistani Legal Advisor AI (Grok Powered)",
+    page_title="Pakistani Legal Advisor AI",
     page_icon="⚖️",
     layout="centered"
 )
 
 st.title("🏛️ Pakistani Legal Consultation AI")
-st.caption("Your concise, pro-user assistant powered by Grok AI, Pakistani Law, and Court Precedents.")
+st.caption("Your concise, pro-user assistant for Pakistani Law and Court Precedents.")
 
 # --- 2. Initialize Base Resources (Cached globally to save RAM) ---
 @st.cache_resource
@@ -36,22 +36,20 @@ def init_base_rag():
         embedding_function=embeddings
     )
     
-    # Safe check for Streamlit secrets or local env variable for Grok (xAI)
+    # Safe check for Streamlit secrets or local env variable
     api_key = None
     try:
-        api_key = st.secrets.get("GROK_API_KEY")
+        api_key = st.secrets.get("GOOGLE_API_KEY")
     except Exception:
         pass
     
     if not api_key:
-        api_key = os.getenv("GROK_API_KEY")
+        api_key = os.getenv("GOOGLE_API_KEY")
     
-    # Initialize Grok via xAI's OpenAI-compatible API structure
-    llm = ChatOpenAI(
-        model="grok-beta",  # or grok-2 depending on your xAI model preference
+    llm = ChatGoogleGenerativeAI(
+        model="gemini-2.5-flash",
         temperature=0.2,
-        openai_api_key=api_key,
-        openai_api_base="https://api.x.ai/v1"
+        google_api_key=api_key
     )
     return embeddings, base_vector_store, llm
 
@@ -151,7 +149,7 @@ def legal_generation_node(state: LegalRAGState):
     context = state["retrieved_context"]
     messages = state["messages"]
     
-    system_prompt = f"""You are a concise, not too short but structured answer, pro-user Pakistani Legal Advisor. 
+    system_prompt = f"""You are a concise,not tooShort but Structured answer, pro-user Pakistani Legal Advisor. 
 Your goal is to provide brief, highly structured, and well-cited answers. Avoid long blocks of text or heavy paragraphs.
 
 Retrieved Legal Context (Statutes & Supreme Court Precedents):
@@ -170,7 +168,6 @@ Strict Output Format & Rules:
     chat_prompt = [SystemMessage(content=system_prompt)] + messages
     response = llm.invoke(chat_prompt)
     return {"messages": [response]}
-
 workflow = StateGraph(LegalRAGState)
 workflow.add_node("rewriter", query_rewriter_node)
 workflow.add_node("retriever", retrieval_node)
@@ -201,7 +198,7 @@ if user_prompt := st.chat_input("Describe your legal issue or ask about your upl
             lc_messages.append(AIMessage(content=msg["content"]))
 
     with st.chat_message("assistant"):
-        with st.spinner("Analyzing standard laws, precedents, and your documents via Grok..."):
+        with st.spinner("Analyzing standard laws, precedents, and your documents..."):
             try:
                 state_output = app_graph.invoke({
                     "messages": lc_messages,
