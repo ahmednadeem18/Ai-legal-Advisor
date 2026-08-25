@@ -37,7 +37,15 @@ def init_base_rag():
     )
     
     # Use Streamlit secrets if hosted online, otherwise environment variables
-    api_key = st.secrets.get("GOOGLE_API_KEY", os.getenv("GOOGLE_API_KEY"))
+    # Safe check that won't crash if local secrets.toml is missing
+    api_key = None
+    try:
+        api_key = st.secrets.get("GOOGLE_API_KEY")
+    except Exception:
+        pass
+    
+    if not api_key:
+        api_key = os.getenv("GOOGLE_API_KEY")
     
     llm = ChatGoogleGenerativeAI(
         model="gemini-2.5-flash",
