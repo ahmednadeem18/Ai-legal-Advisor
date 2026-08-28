@@ -1,20 +1,24 @@
 import os
 import requests
 from fastapi import FastAPI, Request, Response
-from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_community.vectorstores import SupabaseVectorStore
+from langchain_openai import OpenAIEmbeddings
 from supabase import create_client
-from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_groq import ChatGroq
+
 app = FastAPI()
 
-# Initialize Supabase & Grok Client
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY")
 supabase_client = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
-embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
+# Use OpenAI API for embeddings instead of local sentence-transformers to keep bundle size under 500MB
+embeddings = OpenAIEmbeddings(
+    model="text-embedding-3-small",
+    openai_api_key=os.getenv("OPENAI_API_KEY")
+)
+
 vector_store = SupabaseVectorStore(
     client=supabase_client,
     embedding=embeddings,
@@ -22,9 +26,10 @@ vector_store = SupabaseVectorStore(
     query_name="match_legal_documents"
 )
 retriever = vector_store.as_retriever(search_kwargs={"k": 3})
+
 api_key = os.getenv("GROK_API_KEY")
 llm = ChatGroq(
-    model="openai/gpt-oss-20b",  # Or another active Groq model
+    model="openai/gpt-oss-20b",
     temperature=0.2,
     groq_api_key=api_key
 )

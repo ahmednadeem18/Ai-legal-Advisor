@@ -3,6 +3,7 @@ uvicorn
 requests
 supabase
 langchain-community
+langchain-openai
 langchain-groq
 pydantic
 python-dotenv
