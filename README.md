@@ -8,7 +8,7 @@ An AI-powered legal assistant designed to navigate the Pakistani legal system, p
 ---
 
 ## The Core Idea
-Navigating Pakistani laws—such as the Pakistan Penal Code (PPC), Criminal Procedure Code (CrPC), and civil statutes—can be complex and time-consuming. This project bridges that gap by acting as an intelligent legal research partner. 
+Navigating Pakistani laws—such as the Pakistan Penal Code (PPC), Criminal Procedure Code (CrPC), and civil statutes can be complex and time-consuming. This project bridges that gap by acting as an intelligent legal research partner. 
 
 By combining Retrieval-Augmented Generation (RAG) with high-speed LLM inference, the system ingests comprehensive legal documents, indexes them via vector embeddings, and precisely retrieves applicable laws to answer complex natural language legal inquiries in seconds.
 
