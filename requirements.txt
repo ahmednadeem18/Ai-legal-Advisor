@@ -4,6 +4,7 @@ requests
 supabase
 langchain-community
 langchain-huggingface
+sentence-transformers
 langchain-openai
 langchain-groq
 pydantic
