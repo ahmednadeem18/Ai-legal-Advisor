@@ -8,32 +8,46 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_chroma import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_openai import ChatOpenAI  # Grok uses OpenAI-compatible client
+from langchain_community.vectorstores import SupabaseVectorStore
+from supabase import create_client
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 from langgraph.graph import StateGraph, START, END
 from typing import TypedDict, Annotated, List, Any
+from langchain_groq import ChatGroq
 import operator
 
 load_dotenv()
 
 # --- 1. Page Config ---
 st.set_page_config(
-    page_title="Pakistani Legal Advisor AI (Grok Powered)",
+    page_title="Pakistani Legal Advisor AI (Supabase + Grok)",
     page_icon="⚖️",
     layout="centered"
 )
 
 st.title("🏛️ Pakistani Legal Consultation AI")
-st.caption("Your concise, pro-user assistant powered by Grok AI, Pakistani Law, and Court Precedents.")
+st.caption("Your Legal Ai Assistant To Help You .")
 
-# --- 2. Initialize Base Resources (Cached globally to save RAM) ---
+# --- 2. Initialize Base Resources (Supabase Cloud + Grok LLM) ---
 @st.cache_resource
 def init_base_rag():
     embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
     
-    # Load shared pre-indexed base vector database (Statutes & Precedents)
-    base_vector_store = Chroma(
-        persist_directory="./pak_law_chroma_db",
-        embedding_function=embeddings
+    # Connect to Supabase Cloud Database for Statutes & Precedents
+    supabase_url = st.secrets.get("SUPABASE_URL") or os.getenv("SUPABASE_URL")
+    supabase_key = st.secrets.get("SUPABASE_SERVICE_KEY") or os.getenv("SUPABASE_SERVICE_KEY")
+    
+    if not supabase_url or not supabase_key:
+        st.error("Missing Supabase credentials. Please set SUPABASE_URL and SUPABASE_SERVICE_KEY in your secrets or environment variables.")
+        st.stop()
+        
+    supabase_client = create_client(supabase_url, supabase_key)
+    
+    base_vector_store = SupabaseVectorStore(
+        client=supabase_client,
+        embedding=embeddings,
+        table_name="legal_documents",
+        query_name="match_legal_documents"
     )
     
     # Safe check for Streamlit secrets or local env variable for Grok (xAI)
@@ -47,11 +61,10 @@ def init_base_rag():
         api_key = os.getenv("GROK_API_KEY")
     
     # Initialize Grok via xAI's OpenAI-compatible API structure
-    llm = ChatOpenAI(
-        model="grok-beta",  # or grok-2 depending on your xAI model preference
+    llm = ChatGroq(
+        model="openai/gpt-oss-20b",  # Or another active Groq model
         temperature=0.2,
-        openai_api_key=api_key,
-        openai_api_base="https://api.x.ai/v1"
+        groq_api_key=api_key
     )
     return embeddings, base_vector_store, llm
 
@@ -201,7 +214,7 @@ if user_prompt := st.chat_input("Describe your legal issue or ask about your upl
             lc_messages.append(AIMessage(content=msg["content"]))
 
     with st.chat_message("assistant"):
-        with st.spinner("Analyzing standard laws, precedents, and your documents via Grok..."):
+        with st.spinner("Analyzing standard laws, precedents, and your documents via Supabase & Grok..."):
             try:
                 state_output = app_graph.invoke({
                     "messages": lc_messages,

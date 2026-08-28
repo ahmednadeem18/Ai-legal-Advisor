@@ -15,7 +15,7 @@ print("Fetching dataset from Hugging Face...")
 dataset = load_dataset("Ibtehaj10/supreme-court-of-pak-judgments", split="train")
 
 # 3. Set a balanced limit (e.g., 350 records — large enough for diverse cases, small enough for GitHub)
-LIMIT = 150
+LIMIT = 120
 print(f"Selecting {LIMIT} Supreme Court precedents for a balanced, GitHub-friendly database size...")
 sample_data = dataset.select(range(min(LIMIT, len(dataset))))
 
