@@ -86,7 +86,32 @@ Retrieved Legal Context:
     return {"status": "ok"}
 from fastapi.responses import RedirectResponse
 import urllib.parse
+@app.get("/test")
+async def test_legal_advisor(query: str = "What is the punishment for theft under Pakistan Penal Code?"):
+    try:
+        docs = retriever.invoke(query)
+        context = "\n\n---\n\n".join([d.page_content for d in docs])
+        
+        system_prompt = f"""You are a concise, structured Pakistani Legal Advisor answering an Instagram DM. Provide a direct answer, mandatory section/article citation, and a brief case precedent. Keep it mobile-friendly and brief.
 
+Retrieved Legal Context:
+\"\"\"
+{context}
+\"\"\"
+"""
+        ai_response = llm.invoke([
+            SystemMessage(content=system_prompt),
+            HumanMessage(content=query)
+        ])
+        
+        return {
+            "status": "success",
+            "query": query,
+            "docs_found": len(docs),
+            "ai_response": ai_response.content
+        }
+    except Exception as e:
+        return {"status": "error", "detail": str(e)}
 @app.get("/auth/login")
 async def instagram_login():
     client_id = os.getenv("META_APP_ID")
