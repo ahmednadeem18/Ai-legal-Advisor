@@ -84,7 +84,74 @@ Retrieved Legal Context:
         print(f"Error processing webhook: {e}")
         
     return {"status": "ok"}
+from fastapi.responses import RedirectResponse
+import urllib.parse
 
+@app.get("/auth/login")
+async def instagram_login():
+    client_id = os.getenv("META_APP_ID")
+    redirect_uri = os.getenv("META_REDIRECT_URI") # e.g., https://ai-legal-advisor-bx36.vercel.app/auth/callback
+    
+    # Required permissions for managing Instagram messages and basic profile
+    scope = "instagram_basic,instagram_manage_messages,pages_show_list,pages_messaging"
+    
+    auth_url = (
+        f"https://www.facebook.com/v18.0/dialog/oauth?"
+        f"client_id={client_id}&redirect_uri={urllib.parse.quote(redirect_uri)}&"
+        f"scope={scope}&response_type=code"
+    )
+    return RedirectResponse(url=auth_url)
+@app.get("/auth/callback")
+async def auth_callback(code: str):
+    client_id = os.getenv("META_APP_ID")
+    client_secret = os.getenv("META_APP_SECRET")
+    redirect_uri = os.getenv("META_REDIRECT_URI")
+    
+    # 1. Exchange code for short-lived access token
+    token_url = "https://graph.facebook.com/v18.0/oauth/access_token"
+    params = {
+        "client_id": client_id,
+        "client_secret": client_secret,
+        "redirect_uri": redirect_uri,
+        "code": code
+    }
+    response = requests.get(token_url, params=params)
+    token_data = response.json()
+    short_token = token_data.get("access_token")
+    
+    if not short_token:
+        return {"error": "Failed to obtain access token"}
+        
+    # 2. Upgrade to a long-lived token (approx. 60 days)
+    long_token_url = "https://graph.facebook.com/v18.0/oauth/access_token"
+    long_params = {
+        "grant_type": "fb_exchange_token",
+        "client_id": client_id,
+        "client_secret": client_secret,
+        "fb_exchange_token": short_token
+    }
+    long_response = requests.get(long_token_url, params=long_params)
+    long_token = long_response.json().get("access_token")
+
+    # 3. Fetch Facebook Pages connected to user, then find the associated Instagram Business Account ID
+    pages_url = f"https://graph.facebook.com/v18.0/me/accounts?access_token={long_token}"
+    pages_res = requests.get(pages_url).json()
+    
+    # Store the long_token and ig_business_account_id securely in your Supabase database tied to this business user
+    for page in pages_res.get("data", []):
+        page_id = page["id"]
+        page_token = page["access_token"]
+        
+        ig_info = requests.get(
+            f"https://graph.facebook.com/v18.0/{page_id}?fields=instagram_business_account&access_token={page_token}"
+        ).json()
+        
+        ig_account_id = ig_info.get("instagram_business_account", {}).get("id")
+        if ig_account_id:
+            # TODO: Save ig_account_id and long_token into Supabase database table `business_tokens`
+            pass
+
+    return {"status": "success", "message": "Instagram Business account successfully linked!"}
 def send_instagram_reply(recipient_id: str, text: str):
     url = "https://graph.facebook.com/v18.0/me/messages"
     payload = {
