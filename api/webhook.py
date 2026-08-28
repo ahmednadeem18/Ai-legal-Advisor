@@ -36,7 +36,9 @@ llm = ChatGroq(
 
 VERIFY_TOKEN = os.getenv("META_VERIFY_TOKEN", "pakistan_legal_bot_token")
 ACCESS_TOKEN = os.getenv("INSTAGRAM_ACCESS_TOKEN")
-
+@app.get("/")
+async def root():
+    return {"status": "online", "message": "Pakistani Legal Advisor Instagram Webhook is running!"}
 @app.get("/webhook")
 async def verify_webhook(request: Request):
     mode = request.query_params.get("hub.mode")
